@@ -1,19 +1,46 @@
-import { useState } from 'react';
+// src/pages/auth/Login.tsx
+
+import React, { useState, FC } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
+import { useAuth } from '../../context/AuthContext';
 
-export default function Login() {
+const Login: FC = () => {
   const navigate = useNavigate();
+  const { login, isAuthenticated } = useAuth();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  if (isAuthenticated) {
     navigate('/');
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      const response = await fetch('http://localhost:5000/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        login(data.token);
+        navigate('/');
+      } else {
+        setError(data.error);
+      }
+    } catch (err) {
+      setError('Something went wrong. Please try again later.');
+    }
   };
 
   return (
@@ -66,25 +93,7 @@ export default function Login() {
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-                  Remember me
-                </label>
-              </div>
-
-              <div className="text-sm">
-                <Link to="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-500">
-                  Forgot your password?
-                </Link>
-              </div>
-            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
 
             <Button type="submit" variant="primary" className="w-full">
               Sign in
@@ -94,4 +103,6 @@ export default function Login() {
       </div>
     </div>
   );
-}
+};
+
+export default Login;

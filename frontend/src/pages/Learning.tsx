@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { BookOpen, Video, FileText, Award } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { usePoints } from './PointsContext';
+import { usePoints } from '../context/PointsContext';
 import { courses, Course } from '../data/courses';
 
 const Learning: FC = () => {

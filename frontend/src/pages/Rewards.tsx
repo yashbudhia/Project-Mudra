@@ -4,7 +4,7 @@ import React, { FC } from 'react';
 import { Gift, Star, Trophy, Coins } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
-import { usePoints } from './PointsContext';
+import { usePoints } from '../context/PointsContext';
 
 interface Reward {
   title: string;

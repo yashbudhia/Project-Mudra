@@ -2,7 +2,7 @@
 
 import React, { FC, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { usePoints } from './PointsContext';
+import { usePoints } from '../context/PointsContext';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
 import { courses, Course } from '../data/courses';

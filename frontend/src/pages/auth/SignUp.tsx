@@ -1,10 +1,12 @@
-import { useState } from 'react';
+// src/pages/auth/SignUp.tsx
+
+import React, { useState, FC } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserPlus } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 
-export default function SignUp() {
+const SignUp: FC = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
@@ -12,11 +14,36 @@ export default function SignUp() {
     password: '',
     confirmPassword: '',
   });
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Add authentication logic here
-    navigate('/login');
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost:5000/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      if (response.ok) {
+        navigate('/login');
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Registration failed');
+      }
+    } catch (err) {
+      setError('Something went wrong. Please try again later.');
+    }
   };
 
   return (
@@ -99,6 +126,8 @@ export default function SignUp() {
               />
             </div>
 
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
             <Button type="submit" variant="primary" className="w-full">
               Sign up
             </Button>
@@ -107,4 +136,6 @@ export default function SignUp() {
       </div>
     </div>
   );
-}
+};
+
+export default SignUp;
