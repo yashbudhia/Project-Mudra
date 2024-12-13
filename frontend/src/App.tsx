@@ -1,3 +1,5 @@
+// src/App.tsx
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
@@ -11,10 +13,11 @@ import Support from './pages/Support';
 import Login from './pages/auth/Login';
 import SignUp from './pages/auth/SignUp';
 import Confirmation from './pages/Confirmation';
+import VoiceNavigator from './components/VoiceNavigator';
 import { AuthProvider } from './context/AuthContext';
 import { PointsProvider } from './context/PointsContext';
 import ProtectedRoute from './routes/ProtectedRoute';
-
+import 'regenerator-runtime/runtime';
 const App: React.FC = () => {
   return (
     <AuthProvider>
@@ -43,6 +46,8 @@ const App: React.FC = () => {
               </Routes>
             </main>
             <Footer />
+            {/* Integrate VoiceNavigator */}
+            <VoiceNavigator />
           </div>
         </Router>
       </PointsProvider>
