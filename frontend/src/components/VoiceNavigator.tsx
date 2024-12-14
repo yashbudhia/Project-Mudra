@@ -22,7 +22,7 @@ const VoiceNavigator: React.FC = () => {
         resetTranscript();
     };
 
-    const handleReadContent = () => {
+    const handleReadContent = async () => {
         console.log('handleReadContent called');
         if (!('speechSynthesis' in window)) {
             setError('Text-to-Speech not supported in your browser.');
@@ -30,39 +30,66 @@ const VoiceNavigator: React.FC = () => {
         }
 
         const contentElement = document.querySelector('main') || document.body;
-        const contentText = contentElement?.innerText || '';
-        console.log('Content text:', contentText);
+        const originalContent = contentElement?.innerText || '';
+        console.log('Original content text:', originalContent);
 
-        if (!contentText) {
+        if (!originalContent) {
             setError('No content available to read.');
             return;
         }
 
-        const utterance = new SpeechSynthesisUtterance(contentText);
-        utterance.lang = language;
-        utterance.pitch = 1;
-        utterance.rate = 1;
-
-        utterance.onend = () => {
-            setIsSpeaking(false);
-            console.log('Reading ended.');
-        };
-
-        utterance.onerror = (e) => {
-            console.error('Speech error:', e);
-            const speechErrorEvent = e as SpeechSynthesisErrorEvent;
-            // If error is interrupted, it's a normal stop scenario, so don't show user error
-            if (speechErrorEvent.error && speechErrorEvent.error !== 'interrupted') {
-                setError('Error during speech synthesis.');
-            }
-            setIsSpeaking(false);
-        };
-
-        window.speechSynthesis.speak(utterance);
-        setIsSpeaking(true);
         setError(null);
-        resetTranscript();
+        setIsSpeaking(false);
+        resetTranscript(); // Clear previous transcript if any
+
+        try {
+            // Fetch enhanced content from AI
+            const response = await axios.post('http://localhost:5000/api/enhance-content', {
+                text: originalContent,
+                language,
+            });
+
+            let { detailedContent } = response.data;
+
+            if (!detailedContent) {
+                setError('AI did not return any enhanced content.');
+                return;
+            }
+
+            console.log('AI returned detailed content:', detailedContent);
+
+            // Remove asterisks or any other unwanted characters
+            // For example, removing all asterisks:
+            detailedContent = detailedContent.replace(/\*/g, '');
+
+            const utterance = new SpeechSynthesisUtterance(detailedContent);
+            utterance.lang = language;
+            utterance.pitch = 1;
+            utterance.rate = 1;
+
+            utterance.onend = () => {
+                setIsSpeaking(false);
+                console.log('Reading ended.');
+            };
+
+            utterance.onerror = (e) => {
+                console.error('Speech error:', e);
+                const speechErrorEvent = e as SpeechSynthesisErrorEvent;
+                if (speechErrorEvent.error && speechErrorEvent.error !== 'interrupted') {
+                    setError('Error during speech synthesis.');
+                }
+                setIsSpeaking(false);
+            };
+
+            window.speechSynthesis.speak(utterance);
+            setIsSpeaking(true);
+            setError(null);
+        } catch (err: any) {
+            console.error('Error enhancing the content:', err);
+            setError('Failed to enhance the content with AI.');
+        }
     };
+
 
     const handleStopSpeaking = () => {
         if (window.speechSynthesis.speaking) {

@@ -48,7 +48,7 @@ export const PointsProvider: React.FC<PointsProviderProps> = ({ children }) => {
 
     const completeCourse = (courseTitle: string) => {
         if (!completedCourses.includes(courseTitle)) {
-            addPoints(500); // Add 500 points for completing a course
+            addPoints(250); // Add 500 points for completing a course
             setCompletedCourses([...completedCourses, courseTitle]);
         }
     };

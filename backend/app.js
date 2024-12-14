@@ -25,7 +25,7 @@ app.use(cors({
     origin: function (origin, callback) {
         if (!origin) return callback(null, true);
         if (allowedOrigins.indexOf(origin) === -1) {
-            const msg = `The CORS policy does not allow access from origin: ${origin}`;
+            const msg = `CORS policy does not allow access from ${origin}`;
             return callback(new Error(msg), false);
         }
         return callback(null, true);
@@ -43,6 +43,7 @@ if (!GEMINI_API_KEY) {
     process.exit(1);
 }
 
+// Connect to MongoDB
 mongoose.connect(MONGODB_URI)
     .then(() => console.log('MongoDB connected'))
     .catch(err => {
@@ -50,6 +51,7 @@ mongoose.connect(MONGODB_URI)
         process.exit(1);
     });
 
+// User Schema and Model
 const UserSchema = new mongoose.Schema({
     name: { type: String, required: true },
     email: { type: String, unique: true, required: true },
@@ -60,9 +62,11 @@ const UserSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', UserSchema);
 
+// Initialize Gemini AI Client
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
+// Rate Limiting
 const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 30,
@@ -180,6 +184,52 @@ app.post('/user/complete-course', authMiddleware, async (req, res) => {
     }
 });
 
+// New endpoint to enhance content with AI
+app.post('/api/enhance-content', async (req, res) => {
+    const { text, language } = req.body;
+
+    if (!text || !language) {
+        return res.status(400).json({ error: 'Text and language are required.' });
+    }
+
+    // Prompt for the AI to enhance the content
+    const prompt = `
+You are an assistant that provides more detailed and enriched descriptions of webpage content.
+Given the following text, produce a more detailed, context-rich version that keeps the main ideas but provides greater clarity, detail, and helpfulness.
+
+Text: "${text}"
+Language: "${language}"
+
+Respond with only the enhanced content in plain text.
+`;
+
+    console.log('Sending content to AI for enhancement:', { text, language });
+
+    try {
+        const result = await model.generateContent(prompt);
+        let aiResponse = result.response.text().trim();
+
+        // If the AI puts code fences, remove them
+        aiResponse = aiResponse.replace(/```[\s\S]*?```/g, '').trim();
+
+        if (!aiResponse) {
+            return res.status(400).json({ error: 'AI returned empty enhanced content.' });
+        }
+
+        // Return the enhanced content
+        res.json({ detailedContent: aiResponse });
+    } catch (error) {
+        console.error('Enhancement API Error:', error);
+        if (error.response) {
+            res.status(error.response.status).json({ error: error.response.data.message || 'AI API error.' });
+        } else if (error.request) {
+            res.status(502).json({ error: 'No response from AI API.' });
+        } else {
+            res.status(500).json({ error: 'Failed to enhance the content.' });
+        }
+    }
+});
+
 // Gemini-based command interpretation
 app.post('/api/interpret-command', apiLimiter, async (req, res) => {
     const { transcript, language } = req.body;
@@ -220,10 +270,9 @@ Language: "${language}"
         let aiResponse = result.response.text().trim();
 
         // Remove code fences if present
-        // This regex removes ```json ... ``` blocks and their content, leaving what's inside the block.
         aiResponse = aiResponse.replace(/```json\s*([\s\S]*?)```/g, '$1').trim();
 
-        // Now parse JSON
+        let parsedResponse;
         try {
             parsedResponse = JSON.parse(aiResponse);
         } catch (parseError) {
