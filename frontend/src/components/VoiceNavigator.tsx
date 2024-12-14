@@ -26,7 +26,7 @@ const VoiceNavigator: React.FC = () => {
             callback: () => navigate('/community'),
         },
         {
-            command: ['open rewards tab', 'go to rewards section', 'navigate to rewards'],
+            command: ['open rewards tab', 'go to rewards section', 'navigate to rewards', 'open reward tab'],
             callback: () => navigate('/rewards'),
         },
         {
@@ -34,7 +34,7 @@ const VoiceNavigator: React.FC = () => {
             callback: () => navigate('/learning'),
         },
         {
-            command: ['open jobs tab', 'go to jobs section', 'navigate to jobs'],
+            command: ['open jobs tab', 'go to jobs section', 'navigate to jobs', 'open job tab',],
             callback: () => navigate('/jobs'),
         },
         {
