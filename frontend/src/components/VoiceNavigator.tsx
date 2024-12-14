@@ -1,58 +1,171 @@
-// src/components/VoiceNavigator.tsx
-
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
+import SpeechRecognition, { useSpeechRecognition, Command } from 'react-speech-recognition';
 import { Mic, MicOff, AlertCircle } from 'lucide-react';
 import Button from './ui/Button';
+import axios from 'axios';
 
-// Define the Command interface locally
-interface Command {
-    command: string | string[];
-    callback: (...args: any[]) => void;
-    matchInterim?: boolean;
-    bestMatchOnly?: boolean;
+interface AIResponse {
+    route: string;
 }
 
 const VoiceNavigator: React.FC = () => {
     const navigate = useNavigate();
     const [supported, setSupported] = useState<boolean>(false);
     const [language, setLanguage] = useState<string>('en-US');
+    const [error, setError] = useState<string | null>(null);
+    const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
 
-    // Define the commands and their corresponding actions
+    const handleSignOut = () => {
+        localStorage.removeItem('token');
+        navigate('/login');
+        resetTranscript();
+    };
+
+    const handleReadContent = () => {
+        console.log('handleReadContent called');
+        if (!('speechSynthesis' in window)) {
+            setError('Text-to-Speech not supported in your browser.');
+            return;
+        }
+
+        const contentElement = document.querySelector('main') || document.body;
+        const contentText = contentElement?.innerText || '';
+        console.log('Content text:', contentText);
+
+        if (!contentText) {
+            setError('No content available to read.');
+            return;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(contentText);
+        utterance.lang = language;
+        utterance.pitch = 1;
+        utterance.rate = 1;
+
+        utterance.onend = () => {
+            setIsSpeaking(false);
+            console.log('Reading ended.');
+        };
+
+        utterance.onerror = (e) => {
+            console.error('Speech error:', e);
+            const speechErrorEvent = e as SpeechSynthesisErrorEvent;
+            // If error is interrupted, it's a normal stop scenario, so don't show user error
+            if (speechErrorEvent.error && speechErrorEvent.error !== 'interrupted') {
+                setError('Error during speech synthesis.');
+            }
+            setIsSpeaking(false);
+        };
+
+        window.speechSynthesis.speak(utterance);
+        setIsSpeaking(true);
+        setError(null);
+        resetTranscript();
+    };
+
+    const handleStopSpeaking = () => {
+        if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            setIsSpeaking(false);
+            setError(null);
+            resetTranscript();
+        }
+    };
+
     const commands: Command[] = [
         {
             command: ['open community tab', 'go to community section', 'navigate to community'],
-            callback: () => navigate('/community'),
+            callback: () => {
+                navigate('/community');
+                resetTranscript();
+            },
         },
         {
-            command: ['open rewards tab', 'go to rewards section', 'navigate to rewards', 'open reward tab'],
-            callback: () => navigate('/rewards'),
+            command: ['open rewards tab', 'go to rewards section', 'navigate to rewards'],
+            callback: () => {
+                navigate('/rewards');
+                resetTranscript();
+            },
         },
         {
             command: ['open learning tab', 'go to learning section', 'navigate to learning'],
-            callback: () => navigate('/learning'),
+            callback: () => {
+                navigate('/learning');
+                resetTranscript();
+            },
         },
         {
-            command: ['open jobs tab', 'go to jobs section', 'navigate to jobs', 'open job tab',],
-            callback: () => navigate('/jobs'),
+            command: ['open jobs tab', 'go to jobs section', 'navigate to jobs'],
+            callback: () => {
+                navigate('/jobs');
+                resetTranscript();
+            },
         },
         {
             command: ['open support tab', 'go to support section', 'navigate to support'],
-            callback: () => navigate('/support'),
+            callback: () => {
+                navigate('/support');
+                resetTranscript();
+            },
         },
         {
             command: ['sign in', 'log in', 'login'],
-            callback: () => navigate('/login'),
+            callback: () => {
+                navigate('/login');
+                resetTranscript();
+            },
         },
         {
             command: ['sign up', 'register', 'create account'],
-            callback: () => navigate('/signup'),
+            callback: () => {
+                navigate('/signup');
+                resetTranscript();
+            },
         },
         {
             command: ['home', 'go home', 'return home'],
-            callback: () => navigate('/'),
+            callback: () => {
+                navigate('/');
+                resetTranscript();
+            },
         },
+        {
+            command: ['sign out', 'log out', 'logout', 'exit account'],
+            callback: () => {
+                handleSignOut();
+            },
+        },
+        {
+            command: [
+                'read out the content',
+                'read out the content of the page',
+                'read the page content',
+                'speak the page'
+            ],
+            callback: () => {
+                console.log('TTS command callback triggered');
+                handleReadContent();
+            },
+        },
+        {
+            command: ['stop', 'halt', 'pause reading'],
+            callback: () => {
+                console.log('TTS stop command triggered');
+                handleStopSpeaking();
+            },
+        },
+    ];
+
+    // List of known TTS commands for extra check in useEffect
+    const ttsCommands = [
+        'read out the content',
+        'read out the content of the page',
+        'read the page content',
+        'speak the page',
+        'stop',
+        'halt',
+        'pause reading'
     ];
 
     const {
@@ -66,21 +179,48 @@ const VoiceNavigator: React.FC = () => {
         setSupported(browserSupportsSpeechRecognition);
     }, [browserSupportsSpeechRecognition]);
 
-    const handleToggleListening = () => {
-        if (listening) {
-            SpeechRecognition.stopListening();
-        } else {
-            SpeechRecognition.startListening({ continuous: false, language });
-        }
-    };
+    useEffect(() => {
+        const interpretCommand = async () => {
+            if (!listening && transcript) {
+                console.log('Transcript after command:', transcript);
+                const lower = transcript.toLowerCase();
+                if (ttsCommands.some(cmd => lower.includes(cmd))) {
+                    resetTranscript();
+                    return;
+                }
+
+                try {
+                    const BACKEND_URL = 'http://localhost:5000';
+                    const response = await axios.post<AIResponse>(`${BACKEND_URL}/api/interpret-command`, {
+                        transcript,
+                        language,
+                    });
+                    const { route } = response.data;
+                    if (route) {
+                        navigate(route);
+                        resetTranscript();
+                    } else {
+                        setError('Could not interpret the command.');
+                    }
+                } catch (err: any) {
+                    console.error(err);
+                    if (err.response && err.response.data && err.response.data.error) {
+                        setError(err.response.data.error);
+                    } else {
+                        setError('Failed to process the command.');
+                    }
+                }
+            }
+        };
+        interpretCommand();
+    }, [listening, transcript, language, navigate, resetTranscript]);
 
     const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setLanguage(e.target.value);
     };
 
     return (
-        <div className="voice-navigator fixed bottom-4 right-4 flex flex-col items-center">
-            {/* Language Selector */}
+        <div className="voice-navigator fixed bottom-4 right-4 flex flex-col items-center bg-white p-4 rounded-lg shadow-lg">
             <div className="mb-2">
                 <label htmlFor="language" className="block text-xs font-medium text-gray-700">
                     Language
@@ -95,7 +235,6 @@ const VoiceNavigator: React.FC = () => {
                     <option value="en-GB">English (UK)</option>
                     <option value="es-ES">Spanish (Spain)</option>
                     <option value="fr-FR">French (France)</option>
-                    {/* Add more languages as needed */}
                 </select>
             </div>
 
@@ -104,7 +243,14 @@ const VoiceNavigator: React.FC = () => {
                     <Button
                         type="button"
                         variant="outline"
-                        onClick={handleToggleListening}
+                        onClick={() => {
+                            if (listening) {
+                                SpeechRecognition.stopListening();
+                            } else {
+                                setError(null);
+                                SpeechRecognition.startListening({ continuous: false, language });
+                            }
+                        }}
                         aria-label={listening ? 'Stop voice commands' : 'Start voice commands'}
                         title={listening ? 'Stop voice commands' : 'Start voice commands'}
                         className={`transition-colors duration-300 ${listening ? 'bg-red-100 border-red-500' : ''}`}
@@ -115,8 +261,10 @@ const VoiceNavigator: React.FC = () => {
                         {listening ? 'Listening...' : 'Voice Commands'}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                        Try saying "open community tab" or "sign in"
+                        Try saying "open community tab" or "read out the content of the page"
                     </p>
+                    {error && <p className="mt-2 text-xs text-red-500">{error}</p>}
+                    {isSpeaking && <p className="mt-2 text-xs text-green-500">Reading out the content...</p>}
                 </>
             ) : (
                 <div className="flex items-center text-red-500">
